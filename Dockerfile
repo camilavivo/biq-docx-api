@@ -16,7 +16,7 @@ COPY . /app
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Cria pastas necessárias
-RUN mkdir -p /app/downloads /app/templates
+RUN mkdir -p /app/downloads
 
 # Expõe a porta padrão do Render
 EXPOSE 10000
