@@ -1,0 +1,171 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ADV Farma – API BIQ DOCX (Base64)",
+    "version": "2.0.1",
+    "description": "Endpoint para gerar o Boletim de Incidência da Qualidade (BIQ) e retornar o arquivo DOCX em Base64. Ideal para integrações automáticas com sistemas internos ADVFarma e registros eletrônicos (BPF – RDC 658/2022)."
+  },
+  "servers": [
+    {
+      "url": "https://biq-docx-api.onrender.com"
+    }
+  ],
+  "paths": {
+    "/fill_b64": {
+      "post": {
+        "operationId": "gerarBiqDocxBase64",
+        "summary": "Gera o arquivo BIQ e retorna o conteúdo em Base64",
+        "description": "Recebe os dados completos do BIQ, preenche o modelo oficial (Anexo 01 POP-NO-GQ-157) e devolve o arquivo DOCX codificado em Base64, junto com o nome e status da operação.",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "123456"
+            },
+            "description": "Chave de autenticação (se configurada no servidor)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BIQPayload"
+              },
+              "example": {
+                "dados_incidentes": {
+                  "Solicitante:": "Camila de Vivo",
+                  "Setor:": "Produção",
+                  "Data de Detecção:": "11/11/2025",
+                  "Designado para:": "Não Aplicável",
+                  "Abrangência:": "Local ADVFarma",
+                  "Produto:": "Solução Fisiológica Cloreto de Sódio 0,9% 500 mL (60457)",
+                  "Número do Lote:": "S2511037",
+                  "Material:": "Rótulo Verso 500 mL (13110)",
+                  "Equipamento ou Sala Afetada:": "Máquina de Embalagem Primária (22102)",
+                  "Observações Relevantes:": "Não Aplicável"
+                },
+                "justificativa_texto": "Evento caracterizado como Incidente da Qualidade conforme POP-NO-GQ-157.",
+                "descricao_incidente": "Durante o processo de envase, o jet saiu fora da marcação da validade.",
+                "acoes": [
+                  ["01", "Corretiva", "Ajustar o jet", "Corrigir impressão desalinhada", "Supervisor", "Envase", "A definir"]
+                ],
+                "equipe": [
+                  ["Maria Simone Lima Virgino Braga", "Operador de Máquina I"],
+                  ["Bruna Cavalheiro Agostini", "Embalador"],
+                  ["Vera Lucia da Silva Lopes", "Supervisor de Produção"]
+                ],
+                "follow_up_texto": "Lote segregado até liberação formal pela GQ.",
+                "numero_biq": "BIQ 202511002"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Arquivo BIQ gerado com sucesso (Base64)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BIQResponseBase64"
+                },
+                "example": {
+                  "filename": "FORMULARIO_BIQ_PRENCHIDO_20251127_8a9b7d2c.docx",
+                  "filedata": "UEsDBBQABgAIAAAAIQCu...",
+                  "status": "success"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API Key inválida ou ausente"
+          },
+          "500": {
+            "description": "Erro interno na geração do arquivo"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BIQPayload": {
+        "type": "object",
+        "properties": {
+          "dados_incidentes": {
+            "type": "object",
+            "description": "Campos principais do formulário BIQ",
+            "example": {
+              "Solicitante:": "Camila de Vivo",
+              "Setor:": "Produção",
+              "Data de Detecção:": "11/11/2025",
+              "Designado para:": "Não Aplicável",
+              "Abrangência:": "Local ADVFarma"
+            }
+          },
+          "justificativa_texto": {
+            "type": "string",
+            "description": "Texto explicando a justificativa da classificação"
+          },
+          "descricao_incidente": {
+            "type": "string",
+            "description": "Descrição completa e detalhada do incidente"
+          },
+          "acoes": {
+            "type": "array",
+            "description": "Lista de ações corretivas e preventivas (7 colunas)",
+            "items": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "equipe": {
+            "type": "array",
+            "description": "Equipe envolvida (nome completo e cargo)",
+            "items": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "follow_up_texto": {
+            "type": "string",
+            "description": "Resumo do acompanhamento e conclusões do incidente"
+          },
+          "numero_biq": {
+            "type": "string",
+            "description": "Número do BIQ formatado (ex: BIQ 202511002)"
+          }
+        },
+        "required": [
+          "dados_incidentes",
+          "justificativa_texto",
+          "descricao_incidente",
+          "acoes",
+          "equipe",
+          "follow_up_texto",
+          "numero_biq"
+        ]
+      },
+      "BIQResponseBase64": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Nome do arquivo gerado (DOCX)"
+          },
+          "filedata": {
+            "type": "string",
+            "description": "Conteúdo do arquivo em Base64"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status da operação (success / error)"
+          }
+        }
+      }
+    }
+  }
+}
