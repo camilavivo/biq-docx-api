@@ -1,0 +1,164 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ADV Farma – API BIQ DOCX",
+    "version": "2.0.1",
+    "description": "API para geração automática do Boletim de Incidência da Qualidade (BIQ) conforme POP-NO-GQ-157 e padrões BPF."
+  },
+  "servers": [
+    {
+      "url": "https://biq-docx-api.onrender.com"
+    }
+  ],
+  "paths": {
+    "/fill_url": {
+      "post": {
+        "operationId": "gerarBiqDocx",
+        "summary": "Gera o arquivo BIQ e retorna uma URL pública para download",
+        "description": "Recebe os dados estruturados do BIQ, preenche o modelo DOCX oficial (Anexo 01 POP-NO-GQ-157) e retorna a URL para download do arquivo gerado.",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "123456"
+            },
+            "description": "Chave de autenticação (se configurada no servidor)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BIQPayload"
+              },
+              "example": {
+                "dados_incidentes": {
+                  "Solicitante:": "Camila de Vivo",
+                  "Setor:": "Produção",
+                  "Data de Detecção:": "11/11/2025",
+                  "Designado para:": "Não Aplicável",
+                  "Abrangência:": "Local ADVFarma",
+                  "Produto:": "Solução Fisiológica Cloreto de Sódio 0,9% 500 mL (60457)",
+                  "Número do Lote:": "S2511037",
+                  "Material:": "Rótulo Verso 500 mL (13110)",
+                  "Equipamento ou Sala Afetada:": "Máquina de Embalagem Primária (22102)",
+                  "Observações Relevantes:": "Não Aplicável"
+                },
+                "justificativa_texto": "Evento caracterizado como Incidente da Qualidade conforme POP-NO-GQ-157.",
+                "descricao_incidente": "Durante o processo de envase, o jet saiu fora da marcação da validade.",
+                "acoes": [
+                  ["01", "Corretiva", "Ajustar o jet", "Corrigir impressão desalinhada", "Supervisor", "Envase", "A definir"]
+                ],
+                "equipe": [
+                  ["Maria Simone Lima Virgino Braga", "Operador de Máquina I"],
+                  ["Bruna Cavalheiro Agostini", "Embalador"],
+                  ["Vera Lucia da Silva Lopes", "Supervisor de Produção"]
+                ],
+                "follow_up_texto": "Lote segregado até liberação formal pela GQ.",
+                "numero_biq": "BIQ 202511002"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Arquivo BIQ gerado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BIQResponse"
+                },
+                "example": {
+                  "filename": "FORMULARIO_BIQ_PRENCHIDO_20251127_abcd1234.docx",
+                  "fileUrl": "https://biq-docx-api.onrender.com/downloads/FORMULARIO_BIQ_PRENCHIDO_20251127_abcd1234.docx",
+                  "status": "success",
+                  "mensagem": "Arquivo BIQ gerado com sucesso e disponível para download."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API Key inválida ou ausente"
+          },
+          "500": {
+            "description": "Erro interno na geração do arquivo"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BIQPayload": {
+        "type": "object",
+        "properties": {
+          "dados_incidentes": {
+            "type": "object",
+            "description": "Campos principais do formulário BIQ",
+            "example": {
+              "Solicitante:": "Camila de Vivo",
+              "Setor:": "Produção",
+              "Data de Detecção:": "11/11/2025",
+              "Designado para:": "Não Aplicável",
+              "Abrangência:": "Local ADVFarma"
+            }
+          },
+          "justificativa_texto": {
+            "type": "string",
+            "description": "Texto explicando a justificativa da classificação"
+          },
+          "descricao_incidente": {
+            "type": "string",
+            "description": "Descrição completa e detalhada do incidente"
+          },
+          "acoes": {
+            "type": "array",
+            "description": "Lista de ações corretivas e preventivas (7 colunas)",
+            "items": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "equipe": {
+            "type": "array",
+            "description": "Equipe envolvida (nome completo e cargo)",
+            "items": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "follow_up_texto": {
+            "type": "string",
+            "description": "Resumo do acompanhamento e conclusões do incidente"
+          },
+          "numero_biq": {
+            "type": "string",
+            "description": "Número do BIQ formatado (ex: BIQ 202511002)"
+          }
+        },
+        "required": [
+          "dados_incidentes",
+          "justificativa_texto",
+          "descricao_incidente",
+          "acoes",
+          "equipe",
+          "follow_up_texto",
+          "numero_biq"
+        ]
+      },
+      "BIQResponse": {
+        "type": "object",
+        "properties": {
+          "filename": { "type": "string" },
+          "fileUrl": { "type": "string" },
+          "status": { "type": "string" },
+          "mensagem": { "type": "string" }
+        }
+      }
+    }
+  }
+}
