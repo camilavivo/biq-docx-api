@@ -19,8 +19,12 @@ from biq_filler import preencher_biq_from_payload
 # CONFIGURAÇÕES GERAIS
 # =========================================
 API_KEY = os.getenv("BIQ_API_KEY")  # chave opcional de segurança
-TEMPLATE_PATH = os.getenv("BIQ_TEMPLATE_PATH", "/app/MODELO_BIQ.docx")
-DOWNLOAD_DIR = os.getenv("BIQ_DOWNLOAD_DIR", "/app/downloads")
+# Caminhos seguros dentro do container Render
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_PATH = os.getenv("BIQ_TEMPLATE_PATH", os.path.join(BASE_DIR, "MODELO_BIQ.docx"))
+DOWNLOAD_DIR = os.getenv("BIQ_DOWNLOAD_DIR", os.path.join(BASE_DIR, "downloads"))
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
 
 # garante que a pasta de downloads existe
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
