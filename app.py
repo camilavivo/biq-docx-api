@@ -69,8 +69,10 @@ app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
 # MODELO DE DADOS (ENTRADA)
 # ============================================================
 
+from typing import Optional
+
 class BIQPayload(BaseModel):
-    dados_incidentes: dict
+    dados_incidentes: Optional[dict] = {}  # 🔹 Agora é opcional
     justificativa_texto: str
     descricao_incidente: str
     acoes: list
