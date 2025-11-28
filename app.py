@@ -1,78 +1,62 @@
 # -*- coding: utf-8 -*-
 """
-API BIQ ADVFarma — Geração Automática de Boletim de Incidência da Qualidade (Anexo 01 POP-NO-GQ-157)
+API BIQ ADVFarma — Geração Automática do Boletim de Incidência da Qualidade (BIQ)
 Versão: 2.1.0
 """
 
 import os
 import uuid
+import base64
 from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Header, Response, Request
 from pydantic import BaseModel
 from starlette.staticfiles import StaticFiles
-from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 
 from biq_filler import preencher_biq_from_payload
 
 
-# ============================================================
-# CONFIGURAÇÕES GERAIS E AMBIENTE
-# ============================================================
-
-API_KEY = os.getenv("BIQ_API_KEY") or None
-
-# Diretório base do app (Render: /opt/render/project/src)
+# =========================================
+# CONFIGURAÇÕES GERAIS
+# =========================================
+API_KEY = os.getenv("BIQ_API_KEY")  # opcional
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Caminhos seguros e absolutos
 TEMPLATE_PATH = os.getenv("BIQ_TEMPLATE_PATH", os.path.join(BASE_DIR, "MODELO_BIQ.docx"))
 DOWNLOAD_DIR = os.getenv("BIQ_DOWNLOAD_DIR", os.path.join(BASE_DIR, "downloads"))
 
-# Cria pastas e testa permissão de escrita
+# Garantir diretório de downloads
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-try:
-    test_file = os.path.join(DOWNLOAD_DIR, ".permtest")
-    with open(test_file, "w") as f:
-        f.write("ok")
-    os.remove(test_file)
-    print(f"✅ Pasta de downloads OK: {DOWNLOAD_DIR}")
-except Exception as e:
-    print(f"⚠️ Aviso: não foi possível gravar em {DOWNLOAD_DIR} ({e})")
+
+# Log inicial — ajuda no Render
+print(f"🧩 TEMPLATE_PATH definido como: {TEMPLATE_PATH}")
+print(f"📁 DOWNLOAD_DIR definido como: {DOWNLOAD_DIR}")
+
+if os.path.exists(TEMPLATE_PATH):
+    print(f"✅ Modelo BIQ encontrado em: {TEMPLATE_PATH}")
+else:
+    print(f"⚠️ Modelo BIQ NÃO encontrado em: {TEMPLATE_PATH}")
 
 
-# ============================================================
-# INICIALIZAÇÃO DO APP FASTAPI
-# ============================================================
-
+# =========================================
+# FASTAPI CONFIG
+# =========================================
 app = FastAPI(
     title="ADV BIQ Filler API",
     version="2.1.0",
-    description="API oficial da ADV Farma para gerar automaticamente o Boletim de Incidência da Qualidade (BIQ) em formato DOCX.",
+    description="API para geração automática do Boletim de Incidência da Qualidade (BIQ) conforme POP-NO-GQ-157."
 )
 
-# Permite chamadas externas seguras (ex.: do GPT)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Monta rota estática para downloads públicos
+# Expor rota de downloads
 app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
 
 
-# ============================================================
-# MODELO DE DADOS (ENTRADA)
-# ============================================================
-
-from typing import Optional
-
+# =========================================
+# MODELO DE ENTRADA
+# =========================================
 class BIQPayload(BaseModel):
-    dados_incidentes: Optional[dict] = {}  # 🔹 Agora é opcional
+    dados_incidentes: Optional[dict] = {}
     justificativa_texto: str
     descricao_incidente: str
     acoes: list
@@ -81,158 +65,115 @@ class BIQPayload(BaseModel):
     numero_biq: str
 
 
-# ============================================================
+# =========================================
 # AUTENTICAÇÃO OPCIONAL
-# ============================================================
-
+# =========================================
 def _check_api_key(x_api_key: Optional[str]):
-    """Valida a API Key, se configurada via variável de ambiente."""
+    """Valida a API Key, se configurada."""
     if not API_KEY:
-        return  # API sem restrição
+        return
     if not x_api_key or x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="API key inválida ou ausente.")
+        raise HTTPException(status_code=401, detail="API key inválida.")
 
 
-# ============================================================
+# =========================================
 # HEALTHCHECK
-# ============================================================
-
+# =========================================
 @app.get("/health")
 def health():
-    """Verifica status geral e existência do template."""
+    """Rota de verificação da API."""
     exists = os.path.exists(TEMPLATE_PATH)
     return {
         "status": "ok",
-        "msg": "API BIQ online e funcional",
+        "msg": "API BIQ online",
         "versao": "2.1.0",
         "template_encontrado": exists,
-        "template_path": TEMPLATE_PATH,
-        "download_dir": DOWNLOAD_DIR,
+        "template_path": TEMPLATE_PATH
     }
 
 
-# ============================================================
-# ROTA 1 — RETORNA DOCX DIRETO (binário)
-# ============================================================
-
-@app.post(
-    "/fill",
-    response_class=Response,
-    responses={200: {"content": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document": {}}}},
-)
+# =========================================
+# /fill — GERA DOCX DIRETO (download)
+# =========================================
+@app.post("/fill")
 def fill(payload: BIQPayload, x_api_key: Optional[str] = Header(default=None)):
-    """Gera o arquivo BIQ e retorna o DOCX direto (download binário)."""
     _check_api_key(x_api_key)
-
-    if not os.path.exists(TEMPLATE_PATH):
-        raise HTTPException(status_code=500, detail=f"Template não encontrado: {TEMPLATE_PATH}")
-
     try:
+        if not os.path.exists(TEMPLATE_PATH):
+            raise FileNotFoundError(f"Template não encontrado: {TEMPLATE_PATH}")
+
         docx_bytes = preencher_biq_from_payload(TEMPLATE_PATH, payload.model_dump())
+        headers = {"Content-Disposition": 'attachment; filename="FORMULARIO_BIQ_PRENCHIDO.docx"'}
+
+        print("✅ BIQ gerado e enviado como resposta direta.")
+        return Response(
+            content=docx_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers=headers
+        )
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao preencher o documento: {e}")
-
-    headers = {"Content-Disposition": 'attachment; filename="FORMULARIO_BIQ_PRENCHIDO.docx"'}
-    return Response(
-        content=docx_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers=headers,
-    )
+        print(f"❌ Erro em /fill: {e}")
+        return JSONResponse(status_code=500, content={"erro": str(e)})
 
 
-# ============================================================
-# ROTA 2 — RETORNA EM BASE64
-# ============================================================
-
+# =========================================
+# /fill_b64 — GERA BASE64
+# =========================================
 @app.post("/fill_b64")
 def fill_b64(payload: BIQPayload, x_api_key: Optional[str] = Header(default=None)):
-    """Gera o arquivo BIQ e retorna em formato Base64."""
-    import base64
-
     _check_api_key(x_api_key)
-
-    if not os.path.exists(TEMPLATE_PATH):
-        raise HTTPException(status_code=500, detail=f"Template não encontrado: {TEMPLATE_PATH}")
-
     try:
+        if not os.path.exists(TEMPLATE_PATH):
+            raise FileNotFoundError(f"Template não encontrado: {TEMPLATE_PATH}")
+
         docx_bytes = preencher_biq_from_payload(TEMPLATE_PATH, payload.model_dump())
         b64 = base64.b64encode(docx_bytes).decode("utf-8")
+
+        print("✅ BIQ gerado e retornado em Base64.")
+        return {"filename": "FORMULARIO_BIQ_PRENCHIDO.docx", "filedata": b64, "status": "success"}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar base64: {e}")
+        print(f"❌ Erro em /fill_b64: {e}")
+        return JSONResponse(status_code=500, content={"erro": str(e)})
 
-    return {"filename": "FORMULARIO_BIQ_PRENCHIDO.docx", "filedata": b64, "status": "success"}
 
-
-# ============================================================
-# ROTA 3 — RETORNA URL PÚBLICA DO DOCX
-# ============================================================
-
+# =========================================
+# /fill_url — GERA DOCX E SALVA NO SERVIDOR
+# =========================================
 @app.post("/fill_url")
 def fill_url(request: Request, payload: BIQPayload, x_api_key: Optional[str] = Header(default=None)):
-    """Gera o BIQ, salva em /downloads e retorna a URL pública."""
     _check_api_key(x_api_key)
-
-    if not os.path.exists(TEMPLATE_PATH):
-        raise HTTPException(status_code=500, detail=f"Template não encontrado: {TEMPLATE_PATH}")
-
     try:
+        if not os.path.exists(TEMPLATE_PATH):
+            raise FileNotFoundError(f"Template não encontrado: {TEMPLATE_PATH}")
+
+        # Gera DOCX
         docx_bytes = preencher_biq_from_payload(TEMPLATE_PATH, payload.model_dump())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar documento: {e}")
 
-    # Nome único e caminho final
-    stamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-    unique = uuid.uuid4().hex[:8]
-    filename = f"FORMULARIO_BIQ_PRENCHIDO_{stamp}_{unique}.docx"
-    filepath = os.path.join(DOWNLOAD_DIR, filename)
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+        # Nome e caminho seguros
+        stamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        unique = uuid.uuid4().hex[:8]
+        filename = f"FORMULARIO_BIQ_PRENCHIDO_{stamp}_{unique}.docx"
+        filepath = os.path.join(DOWNLOAD_DIR, filename)
+        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-    try:
+        # Salva no diretório
         with open(filepath, "wb") as f:
             f.write(docx_bytes)
+
+        base_url = str(request.base_url).rstrip("/")
+        file_url = f"{base_url}/downloads/{filename}"
+
+        print(f"✅ Arquivo salvo e disponível em: {file_url}")
+
+        return {
+            "filename": filename,
+            "fileUrl": file_url,
+            "status": "success",
+            "mensagem": "Arquivo BIQ gerado com sucesso e disponível para download."
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {e}")
-
-    file_url = f"{str(request.base_url).rstrip('/')}/downloads/{filename}"
-    print(f"📄 BIQ gerado com sucesso: {file_url}")
-
-    return {
-        "filename": filename,
-        "fileUrl": file_url,
-        "status": "success",
-        "mensagem": "Arquivo BIQ gerado com sucesso e disponível para download público.",
-    }
-
-
-# ============================================================
-# ROTA 4 — COMPATIBILIDADE COM GPT ACTION (/gerar-biq-docx)
-# ============================================================
-
-@app.post("/gerar-biq-docx")
-def gerar_biq_docx_action(request: Request, payload: BIQPayload, x_api_key: Optional[str] = Header(default=None)):
-    """
-    Compatível com a Action do GPT (gerarBiqDocx).
-    Redireciona internamente para /fill_url.
-    """
-    print("🔄 Recebida requisição via /gerar-biq-docx (Action do GPT).")
-    return fill_url(request, payload, x_api_key)
-
-
-# ============================================================
-# STARTUP MESSAGE (para logs no Render)
-# ============================================================
-
-@app.on_event("startup")
-def startup_event():
-    print("🚀 API BIQ ADV Farma inicializada com sucesso.")
-    print(f"📂 Template: {TEMPLATE_PATH}")
-    print(f"📁 Downloads: {DOWNLOAD_DIR}")
-
-
-# ============================================================
-# EXECUÇÃO LOCAL (opcional)
-# ============================================================
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=10000)
+        print(f"❌ Erro em /fill_url: {e}")
+        return JSONResponse(status_code=500, content={"erro": str(e)})
