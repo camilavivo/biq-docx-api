@@ -1,3 +1,10 @@
+# Garante permissões seguras ao iniciar
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+try:
+    open(os.path.join(DOWNLOAD_DIR, ".test"), "w").close()
+except Exception as e:
+    print(f"⚠️ Aviso: não foi possível gravar em {DOWNLOAD_DIR} - {e}")
+
 # -*- coding: utf-8 -*-
 """
 API BIQ ADVFarma — Preenche o Boletim de Incidência da Qualidade (Anexo 01 POP-NO-GQ-157)
